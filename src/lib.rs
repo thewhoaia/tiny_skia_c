@@ -1,18 +1,22 @@
-use tiny_skia::{Path, PathBuilder, Point, Transform};
+#![allow(non_camel_case_types)]
+#![allow(clippy::missing_safety_doc)]
+
+use std::ffi::{c_char, CStr};
+use tiny_skia::{Color, FillRule, Paint, Path, PathBuilder, Point, Rect, Transform};
 
 /// @brief List of possible errors.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ts_point {
     x: f32,
-    y: f32
+    y: f32,
 }
 
-impl Into<Point> for ts_point {
-    fn into(self) -> Point {
-        Point {
-            x: self.x,
-            y: self.y,
+impl From<Point> for ts_point {
+    fn from(value: Point) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
         }
     }
 }
@@ -25,32 +29,65 @@ pub struct ts_transform {
     ky: f32,
     sy: f32,
     tx: f32,
-    ty: f32
+    ty: f32,
 }
 
-impl Into<Transform> for ts_transform {
-    fn into(self) -> Transform {
-        Transform {
-            sx: self.sx,
-            kx: self.kx,
-            ky: self.ky,
-            sy: self.sy,
-            tx: self.tx,
-            ty: self.ty,
+impl From<Transform> for ts_transform {
+    fn from(value: Transform) -> Self {
+        Self {
+            sx: value.sx,
+            kx: value.kx,
+            ky: value.ky,
+            sy: value.sy,
+            tx: value.tx,
+            ty: value.ty,
         }
     }
 }
 
-impl Into<ts_transform> for Transform {
-    fn into(self) -> ts_transform {
-        ts_transform {
-            sx: self.sx,
-            kx: self.kx,
-            ky: self.ky,
-            sy: self.sy,
-            tx: self.tx,
-            ty: self.ty,
+impl From<ts_transform> for Transform {
+    fn from(value: ts_transform) -> Self {
+        Self {
+            sx: value.sx,
+            kx: value.kx,
+            ky: value.ky,
+            sy: value.sy,
+            tx: value.tx,
+            ty: value.ty,
         }
+    }
+}
+
+pub struct ts_path_builder(PathBuilder);
+pub struct ts_path(Path);
+
+#[repr(C)]
+pub struct ts_color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl From<ts_color> for Color {
+    fn from(value: ts_color) -> Self {
+        Self::from_rgba8(value.r, value.g, value.b, value.a)
+    }
+}
+
+pub struct ts_pixmap(tiny_skia::Pixmap);
+
+#[repr(C)]
+pub struct ts_rect {
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+}
+
+impl From<ts_rect> for Rect {
+    fn from(value: ts_rect) -> Self {
+        Rect::from_ltrb(value.x0, value.y0, value.x1, value.y1).unwrap()
     }
 }
 
@@ -84,9 +121,6 @@ pub extern "C" fn ts_transform_combine(a: ts_transform, b: ts_transform) -> ts_t
     let b: Transform = b.into();
     a.pre_concat(b).into()
 }
-
-pub struct ts_path_builder(PathBuilder);
-pub struct ts_path(Path);
 
 #[no_mangle]
 pub unsafe extern "C" fn ts_path_builder_create() -> *mut ts_path_builder {
@@ -124,3 +158,56 @@ pub unsafe extern "C" fn ts_path_destroy(b: *mut ts_path) {
     let _ = Box::from_raw(b);
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_create(width: u32, height: u32) -> *mut ts_pixmap {
+    let pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
+    Box::into_raw(Box::new(ts_pixmap(pixmap)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_destroy(pixmap: *mut ts_pixmap) {
+    let _ = Box::from_raw(pixmap);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_save(pixmap: *mut ts_pixmap, path: *const c_char) {
+    let path = CStr::from_ptr(path).to_str().unwrap();
+    (*pixmap).0.save_png(path).unwrap();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_fill_path(
+    pixmap: *mut ts_pixmap,
+    path: *const ts_path,
+    transform: ts_transform,
+    color: ts_color,
+) {
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+
+    (*pixmap).0.fill_path(
+        &(*path).0,
+        &paint,
+        FillRule::Winding,
+        transform.into(),
+        None
+    );
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_fill_rect(
+    pixmap: *mut ts_pixmap,
+    rect: ts_rect,
+    transform: ts_transform,
+    color: ts_color,
+) {
+    let mut paint = Paint::default();
+    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+
+    (*pixmap).0.fill_rect(
+        rect.into(),
+        &paint,
+        transform.into(),
+        None
+    );
+}

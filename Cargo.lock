@@ -33,13 +33,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef657dfab802224e671f5818e9a4935f9b1957ed18e58292690cc39e7a4092a3"
 
 [[package]]
-name = "c_bindings"
-version = "0.1.0"
-dependencies = [
- "tiny-skia",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,4 +131,11 @@ dependencies = [
  "arrayref",
  "bytemuck",
  "strict-num",
+]
+
+[[package]]
+name = "tiny_skia_c"
+version = "0.1.0"
+dependencies = [
+ "tiny-skia",
 ]

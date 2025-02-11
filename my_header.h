@@ -9,6 +9,8 @@ struct ts_path;
 
 struct ts_path_builder;
 
+struct ts_pixmap;
+
 struct ts_transform {
   float sx;
   float kx;
@@ -16,6 +18,20 @@ struct ts_transform {
   float sy;
   float tx;
   float ty;
+};
+
+struct ts_color {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+};
+
+struct ts_rect {
+  float x0;
+  float y0;
+  float x1;
+  float y1;
 };
 
 extern "C" {
@@ -33,6 +49,19 @@ ts_path *ts_path_builder_finish(ts_path_builder *b);
 void ts_path_destroy(ts_path *b);
 
 size_t ts_path_len(ts_path *b);
+
+ts_pixmap *ts_pixmap_create(uint32_t width, uint32_t height);
+
+void ts_pixmap_destroy(ts_pixmap *pixmap);
+
+void ts_pixmap_fill_path(ts_pixmap *pixmap,
+                         const ts_path *path,
+                         ts_transform transform,
+                         ts_color color);
+
+void ts_pixmap_fill_rect(ts_pixmap *pixmap, ts_rect rect, ts_transform transform, ts_color color);
+
+void ts_pixmap_save(ts_pixmap *pixmap, const char *path);
 
 ts_transform ts_transform_combine(ts_transform a, ts_transform b);
 
