@@ -11,4 +11,4 @@ link_directories(${CMAKE_SOURCE_DIR}/../../target/release)
 
 add_executable(runner main.cpp)
 
-target_link_libraries(runner c_bindings)
+target_link_libraries(runner tiny_skia_c)

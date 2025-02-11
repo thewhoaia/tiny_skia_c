@@ -17,7 +17,7 @@ int main()
     ts_pixmap *pixmap = ts_pixmap_create(200, 200);
     ts_pixmap_fill_path(pixmap, path, ts_transform_identity(), c);
 
-    ts_pixmap_save(pixmap, "/Users/lstampfl/Programming/Playground/c_bindings/examples/runner/out.png");
+    ts_pixmap_save(pixmap, "/Users/lstampfl/Programming/Playground/tiny_skia_c/examples/runner/out.png");
 
     ts_path_destroy(path);
     ts_pixmap_destroy(pixmap);
