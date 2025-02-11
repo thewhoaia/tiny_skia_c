@@ -4,9 +4,15 @@
 
 int main()
 {
-    ts_transform ts = ts_transform_scale(2.0, 2.0);
-    ts_transform tr = ts_transform_scale(3.0, 1.5);
-    ts_transform combined = ts_transform_combine(ts, tr);
+    ts_path_builder *b = ts_path_builder_create();
+    ts_move_to(b, 0.0, 0.0);
+    ts_line_to(b, 10.0, 0.0);
+    ts_line_to(b, 10.0, 20.0);
+    ts_line_to(b, 0.0, 20.0);
+    ts_close(b);
 
-    std::cout << combined.sy << std::endl;
+    ts_path *p = ts_path_builder_finish(b);
+
+    std::cout << ts_path_len(p) << std::endl;
+    ts_path_destroy(p);
 }

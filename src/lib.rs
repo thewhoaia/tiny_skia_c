@@ -1,4 +1,4 @@
-use tiny_skia::{Point, Transform};
+use tiny_skia::{Path, PathBuilder, Point, Transform};
 
 /// @brief List of possible errors.
 #[repr(C)]
@@ -84,3 +84,43 @@ pub extern "C" fn ts_transform_combine(a: ts_transform, b: ts_transform) -> ts_t
     let b: Transform = b.into();
     a.pre_concat(b).into()
 }
+
+pub struct ts_path_builder(PathBuilder);
+pub struct ts_path(Path);
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_path_builder_create() -> *mut ts_path_builder {
+    Box::into_raw(Box::new(ts_path_builder(PathBuilder::new())))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_move_to(p: *mut ts_path_builder, x: f32, y: f32) {
+    (*p).0.move_to(x, y);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_line_to(p: *mut ts_path_builder, x: f32, y: f32) {
+    (*p).0.line_to(x, y);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_close(p: *mut ts_path_builder) {
+    (*p).0.close();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_path_builder_finish(b: *mut ts_path_builder) -> *mut ts_path {
+    let path_builder = Box::from_raw(b);
+    Box::into_raw(Box::new(ts_path(path_builder.0.finish().unwrap())))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_path_len(b: *mut ts_path) -> usize {
+    (*b).0.len()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_path_destroy(b: *mut ts_path) {
+    let _ = Box::from_raw(b);
+}
+

@@ -5,6 +5,10 @@
 
 
 
+struct ts_path;
+
+struct ts_path_builder;
+
 struct ts_transform {
   float sx;
   float kx;
@@ -15,6 +19,20 @@ struct ts_transform {
 };
 
 extern "C" {
+
+void ts_close(ts_path_builder *p);
+
+void ts_line_to(ts_path_builder *p, float x, float y);
+
+void ts_move_to(ts_path_builder *p, float x, float y);
+
+ts_path_builder *ts_path_builder_create();
+
+ts_path *ts_path_builder_finish(ts_path_builder *b);
+
+void ts_path_destroy(ts_path *b);
+
+size_t ts_path_len(ts_path *b);
 
 ts_transform ts_transform_combine(ts_transform a, ts_transform b);
 
