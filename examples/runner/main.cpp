@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "my_header.h"
+#include "tiny_skia.h"
 
 int main()
 {
