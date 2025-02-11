@@ -2,7 +2,7 @@
 
 #include "my_header.h"
 
-int main(int argc, char **argv)
+int main()
 {
     ts_transform ts = ts_transform_scale(2.0, 2.0);
     ts_transform tr = ts_transform_scale(3.0, 1.5);
