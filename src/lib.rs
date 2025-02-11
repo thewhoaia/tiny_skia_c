@@ -2,14 +2,29 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::ffi::{c_char, CStr};
-use tiny_skia::{Color, FillRule, Paint, Path, PathBuilder, Point, Rect, Transform};
+use tiny_skia::{BlendMode, Color, FillRule, Paint, Path, PathBuilder, Point, Rect, Transform};
 
-/// @brief List of possible errors.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ts_point {
     x: f32,
     y: f32,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub enum ts_blend_mode {
+    SourceOver,
+    SourceCopy
+}
+
+impl From<ts_blend_mode> for BlendMode {
+    fn from(value: ts_blend_mode) -> Self {
+        match value {
+            ts_blend_mode::SourceOver => BlendMode::SourceOver,
+            ts_blend_mode::SourceCopy => BlendMode::Source
+        }
+    }
 }
 
 impl From<Point> for ts_point {
@@ -117,6 +132,16 @@ pub extern "C" fn ts_transform_scale(sx: f32, sy: f32) -> ts_transform {
 }
 
 #[no_mangle]
+pub extern "C" fn ts_transform_rotate(angle: f32) -> ts_transform {
+    Transform::from_rotate(angle).into()
+}
+
+#[no_mangle]
+pub extern "C" fn ts_transform_rotate_at(angle: f32, cx: f32, cy: f32) -> ts_transform {
+    Transform::from_rotate_at(angle, cx, cy).into()
+}
+
+#[no_mangle]
 pub extern "C" fn ts_transform_combine(a: ts_transform, b: ts_transform) -> ts_transform {
     let a: Transform = a.into();
     let b: Transform = b.into();
@@ -182,8 +207,12 @@ pub unsafe extern "C" fn ts_pixmap_fill_path(
     path: *const ts_path,
     transform: ts_transform,
     color: ts_color,
+    blend_mode: ts_blend_mode
 ) {
-    let mut paint = Paint::default();
+    let mut paint = Paint {
+        blend_mode: blend_mode.into(),
+        ..Default::default()
+    };
     paint.set_color_rgba8(color.r, color.g, color.b, color.a);
 
     (*pixmap).0.fill_path(
@@ -201,11 +230,14 @@ pub unsafe extern "C" fn ts_pixmap_fill_rect(
     rect: ts_rect,
     transform: ts_transform,
     color: ts_color,
+    blend_mode: ts_blend_mode
 ) {
-    let mut paint = Paint::default();
+    let mut paint = Paint {
+        blend_mode: blend_mode.into(),
+        ..Default::default()
+    };
     paint.set_color_rgba8(color.r, color.g, color.b, color.a);
 
-    println!("{:?}", color);
 
     (*pixmap).0.fill_rect(
         rect.into(),

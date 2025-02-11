@@ -37,7 +37,7 @@ usize_is_size_t = true
 
 
 [export]
-include = ["Point"]
+include = ["ts_point"]
 exclude = []
 # prefix = "CAPI_"
 item_types = []
