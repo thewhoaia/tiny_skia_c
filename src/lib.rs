@@ -62,6 +62,7 @@ pub struct ts_path_builder(PathBuilder);
 pub struct ts_path(Path);
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct ts_color {
     pub r: u8,
     pub g: u8,
@@ -204,10 +205,37 @@ pub unsafe extern "C" fn ts_pixmap_fill_rect(
     let mut paint = Paint::default();
     paint.set_color_rgba8(color.r, color.g, color.b, color.a);
 
+    println!("{:?}", color);
+
     (*pixmap).0.fill_rect(
         rect.into(),
         &paint,
         transform.into(),
         None
     );
+}
+
+pub struct ts_argb(Vec<u8>);
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_data(pixmap: *const ts_pixmap) -> *mut ts_argb {
+    let mut buffer = Vec::with_capacity((*pixmap).0.data().len());
+
+    for pixel in (*pixmap).0.pixels() {
+        // let pixel = pixel.demultiply();
+        // buffer.push(data[3]);
+        buffer.extend_from_slice(&[pixel.blue(), pixel.green(), pixel.red(), pixel.alpha()]);
+    }
+
+    Box::into_raw(Box::new(ts_argb(buffer)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_argb_data(data: *const ts_argb) -> *const u8 {
+    (*data).0.as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_argb_destroy(data: *mut ts_argb) {
+    let _ = Box::from_raw(data);
 }
