@@ -2,10 +2,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::ffi::{c_char, CStr};
-use tiny_skia::{
-    BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Point,
-    Rect, Shader, SpreadMode, Stroke, Transform,
-};
+use tiny_skia::{BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Point, RadialGradient, Rect, Shader, SpreadMode, Stroke, Transform};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -19,6 +16,33 @@ pub struct ts_point {
 pub enum ts_blend_mode {
     SourceOver,
     SourceCopy,
+    Clear,
+    Destination,
+    DestinationOver,
+    SourceIn,
+    DestinationIn,
+    SourceOut,
+    DestinationOut,
+    SourceAtop,
+    DestinationAtop,
+    Xor,
+    Plus,
+    Modulate,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Multiply,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
 }
 
 impl From<ts_blend_mode> for BlendMode {
@@ -26,6 +50,33 @@ impl From<ts_blend_mode> for BlendMode {
         match value {
             ts_blend_mode::SourceOver => BlendMode::SourceOver,
             ts_blend_mode::SourceCopy => BlendMode::Source,
+            ts_blend_mode::Clear => BlendMode::Clear,
+            ts_blend_mode::Destination => BlendMode::Destination,
+            ts_blend_mode::DestinationOver => BlendMode::DestinationOver,
+            ts_blend_mode::SourceIn => BlendMode::SourceIn,
+            ts_blend_mode::DestinationIn => BlendMode::DestinationIn,
+            ts_blend_mode::SourceOut => BlendMode::SourceOut,
+            ts_blend_mode::DestinationOut => BlendMode::DestinationOut,
+            ts_blend_mode::SourceAtop => BlendMode::SourceAtop,
+            ts_blend_mode::DestinationAtop => BlendMode::DestinationAtop,
+            ts_blend_mode::Xor => BlendMode::Xor,
+            ts_blend_mode::Plus => BlendMode::Plus,
+            ts_blend_mode::Modulate => BlendMode::Modulate,
+            ts_blend_mode::Screen => BlendMode::Screen,
+            ts_blend_mode::Overlay => BlendMode::Overlay,
+            ts_blend_mode::Darken => BlendMode::Darken,
+            ts_blend_mode::Lighten => BlendMode::Lighten,
+            ts_blend_mode::ColorDodge => BlendMode::ColorDodge,
+            ts_blend_mode::ColorBurn => BlendMode::ColorBurn,
+            ts_blend_mode::HardLight => BlendMode::HardLight,
+            ts_blend_mode::SoftLight => BlendMode::SoftLight,
+            ts_blend_mode::Difference => BlendMode::Difference,
+            ts_blend_mode::Exclusion => BlendMode::Exclusion,
+            ts_blend_mode::Multiply => BlendMode::Multiply,
+            ts_blend_mode::Hue => BlendMode::Hue,
+            ts_blend_mode::Saturation => BlendMode::Saturation,
+            ts_blend_mode::Color => BlendMode::Color,
+            ts_blend_mode::Luminosity => BlendMode::Luminosity,
         }
     }
 }
@@ -365,7 +416,8 @@ pub unsafe extern "C" fn ts_pixmap_stroke_path(
 #[repr(C)]
 pub enum ts_paint {
     Color(ts_color),
-    LinearGradient(*mut ts_linear_gradient)
+    LinearGradient(*mut ts_linear_gradient),
+    RadialGradient(*mut ts_radial_gradient)
 }
 
 unsafe fn convert_paint(paint: ts_paint, blend_mode: ts_blend_mode) -> Paint<'static> {
@@ -383,6 +435,13 @@ unsafe fn convert_paint(paint: ts_paint, blend_mode: ts_blend_mode) -> Paint<'st
             Paint {
                 blend_mode: blend_mode.into(),
                 shader: (*l).clone().into(),
+                ..Default::default()
+            }
+        }
+        ts_paint::RadialGradient(r) => {
+            Paint {
+                blend_mode: blend_mode.into(),
+                shader: (*r).clone().into(),
                 ..Default::default()
             }
         }
@@ -486,6 +545,7 @@ pub struct ts_linear_gradient {
     x1: f32,
     y1: f32,
     stops: Vec<GradientStop>,
+    spread_mode: SpreadMode,
     transform: ts_transform,
 }
 
@@ -495,10 +555,36 @@ impl From<ts_linear_gradient> for Shader<'static> {
             Point::from_xy(value.x0, value.y0),
             Point::from_xy(value.x1, value.y1),
             value.stops,
-            SpreadMode::Pad,
+            value.spread_mode,
             value.transform.into(),
         )
         .unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub struct ts_radial_gradient {
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    r0: f32,
+    stops: Vec<GradientStop>,
+    spread_mode: SpreadMode,
+    transform: ts_transform,
+}
+
+impl From<ts_radial_gradient> for Shader<'static> {
+    fn from(value: ts_radial_gradient) -> Self {
+        RadialGradient::new(
+            Point::from_xy(value.x0, value.y0),
+            Point::from_xy(value.x1, value.y1),
+            value.r0,
+            value.stops,
+            value.spread_mode,
+            value.transform.into(),
+        )
+            .unwrap()
     }
 }
 
@@ -508,6 +594,7 @@ pub unsafe extern "C" fn ts_linear_gradient_create(
     y0: f32,
     x1: f32,
     y1: f32,
+    spread_mode: ts_spread_mode,
     transform: ts_transform,
 ) -> *mut ts_linear_gradient {
     Box::into_raw(Box::new(ts_linear_gradient {
@@ -516,6 +603,29 @@ pub unsafe extern "C" fn ts_linear_gradient_create(
         x1,
         y1,
         stops: vec![],
+        spread_mode: spread_mode.into(),
+        transform,
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_radial_gradient_create(
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    r0: f32,
+    spread_mode: ts_spread_mode,
+    transform: ts_transform,
+) -> *mut ts_radial_gradient {
+    Box::into_raw(Box::new(ts_radial_gradient {
+        x0,
+        y0,
+        x1,
+        y1,
+        r0,
+        stops: vec![],
+        spread_mode: spread_mode.into(),
         transform,
     }))
 }
@@ -529,6 +639,40 @@ pub unsafe extern "C" fn ts_linear_gradient_push_stop(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ts_linear_gradient_destroy(gradient: *mut ts_linear_gradient) {
-    let _ = Box::from_raw(gradient);
+pub unsafe extern "C" fn ts_radial_gradient_push_stop(
+    g: *mut ts_radial_gradient,
+    stop: ts_gradient_stop,
+) {
+    (*g).stops.push(stop.into())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_paint_destroy(paint: ts_paint) {
+    match paint {
+        ts_paint::Color(_) => {}
+        ts_paint::LinearGradient(l) => {
+            let _ = Box::from_raw(l);
+        }
+        ts_paint::RadialGradient(r) => {
+            let _ = Box::from_raw(r);
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub enum ts_spread_mode {
+    Repeat,
+    Pad,
+    Reflect
+}
+
+impl From<ts_spread_mode> for SpreadMode {
+    fn from(value: ts_spread_mode) -> Self {
+        match value {
+            ts_spread_mode::Repeat => SpreadMode::Repeat,
+            ts_spread_mode::Pad => SpreadMode::Pad,
+            ts_spread_mode::Reflect => SpreadMode::Reflect
+        }
+    }
 }
