@@ -3,7 +3,8 @@
 
 use std::ffi::{c_char, CStr};
 use tiny_skia::{
-    BlendMode, Color, FillRule, Paint, Path, PathBuilder, Point, Rect, Stroke, Transform,
+    BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Point,
+    Rect, Shader, SpreadMode, Stroke, Transform,
 };
 
 #[repr(C)]
@@ -96,14 +97,14 @@ impl From<ts_color> for Color {
 #[repr(C)]
 pub enum ts_fill_rule {
     Winding,
-    EvenOdd
+    EvenOdd,
 }
 
 impl From<ts_fill_rule> for FillRule {
     fn from(value: ts_fill_rule) -> Self {
         match value {
             ts_fill_rule::Winding => FillRule::Winding,
-            ts_fill_rule::EvenOdd => FillRule::EvenOdd
+            ts_fill_rule::EvenOdd => FillRule::EvenOdd,
         }
     }
 }
@@ -198,7 +199,15 @@ pub unsafe extern "C" fn ts_quad_to(p: *mut ts_path_builder, x0: f32, y0: f32, x
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ts_cubic_to(p: *mut ts_path_builder, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
+pub unsafe extern "C" fn ts_cubic_to(
+    p: *mut ts_path_builder,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+) {
     (*p).0.cubic_to(x0, y0, x1, y1, x2, y2);
 }
 
@@ -215,7 +224,7 @@ pub unsafe extern "C" fn ts_path_builder_finish(b: *mut ts_path_builder) -> *mut
 
 #[no_mangle]
 pub unsafe extern "C" fn ts_rounded_rect(rect: ts_rect, mut rx: f32, mut ry: f32) -> *mut ts_path {
-    let (x, y, width, height) = (rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1- rect.y0);
+    let (x, y, width, height) = (rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
 
     rx = rx.min(width / 2.0);
     ry = ry.min(height / 2.0);
@@ -272,23 +281,15 @@ pub unsafe extern "C" fn ts_pixmap_fill_path(
     pixmap: *mut ts_pixmap,
     path: *const ts_path,
     transform: ts_transform,
-    color: ts_color,
+    paint: ts_paint,
     fill_rule: ts_fill_rule,
     blend_mode: ts_blend_mode,
 ) {
-    let mut paint = Paint {
-        blend_mode: blend_mode.into(),
-        ..Default::default()
-    };
-    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+    let paint = convert_paint(paint, blend_mode);
 
-    (*pixmap).0.fill_path(
-        &(*path).0,
-        &paint,
-        fill_rule.into(),
-        transform.into(),
-        None,
-    );
+    (*pixmap)
+        .0
+        .fill_path(&(*path).0, &paint, fill_rule.into(), transform.into(), None);
 }
 
 #[no_mangle]
@@ -296,14 +297,10 @@ pub unsafe extern "C" fn ts_pixmap_fill_rect(
     pixmap: *mut ts_pixmap,
     rect: ts_rect,
     transform: ts_transform,
-    color: ts_color,
+    paint: ts_paint,
     blend_mode: ts_blend_mode,
 ) {
-    let mut paint = Paint {
-        blend_mode: blend_mode.into(),
-        ..Default::default()
-    };
-    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+    let paint = convert_paint(paint, blend_mode);
 
     (*pixmap)
         .0
@@ -337,7 +334,7 @@ pub unsafe extern "C" fn ts_argb_destroy(data: *mut ts_argb) {
 
 #[repr(C)]
 pub struct ts_stroke {
-    width: f32
+    width: f32,
 }
 
 impl From<ts_stroke> for Stroke {
@@ -354,23 +351,42 @@ pub unsafe extern "C" fn ts_pixmap_stroke_path(
     pixmap: *mut ts_pixmap,
     path: *const ts_path,
     transform: ts_transform,
-    color: ts_color,
+    paint: ts_paint,
     stroke: ts_stroke,
     blend_mode: ts_blend_mode,
 ) {
-    let mut paint = Paint {
-        blend_mode: blend_mode.into(),
-        ..Default::default()
-    };
-    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+    let paint = convert_paint(paint, blend_mode);
 
-    (*pixmap).0.stroke_path(
-        &(*path).0,
-        &paint,
-        &stroke.into(),
-        transform.into(),
-        None,
-    );
+    (*pixmap)
+        .0
+        .stroke_path(&(*path).0, &paint, &stroke.into(), transform.into(), None);
+}
+
+#[repr(C)]
+pub enum ts_paint {
+    Color(ts_color),
+    LinearGradient(*mut ts_linear_gradient)
+}
+
+unsafe fn convert_paint(paint: ts_paint, blend_mode: ts_blend_mode) -> Paint<'static> {
+    match paint {
+        ts_paint::Color(color) => {
+            let mut paint = Paint {
+                blend_mode: blend_mode.into(),
+                ..Default::default()
+            };
+            paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+
+            paint
+        }
+        ts_paint::LinearGradient(l) => {
+            Paint {
+                blend_mode: blend_mode.into(),
+                shader: (*l).clone().into(),
+                ..Default::default()
+            }
+        }
+    }
 }
 
 #[no_mangle]
@@ -378,25 +394,19 @@ pub unsafe extern "C" fn ts_pixmap_stroke_rect(
     pixmap: *mut ts_pixmap,
     rect: ts_rect,
     transform: ts_transform,
-    color: ts_color,
+    paint: ts_paint,
     stroke: ts_stroke,
     blend_mode: ts_blend_mode,
 ) {
-    let mut paint = Paint {
-        blend_mode: blend_mode.into(),
-        ..Default::default()
-    };
-    paint.set_color_rgba8(color.r, color.g, color.b, color.a);
+    let paint = convert_paint(paint, blend_mode);
 
-    (*pixmap)
-        .0
-        .stroke_path(
-            &PathBuilder::from_rect(rect.into()),
-            &paint,
-            &stroke.into(),
-            transform.into(),
-            None,
-        );
+    (*pixmap).0.stroke_path(
+        &PathBuilder::from_rect(rect.into()),
+        &paint,
+        &stroke.into(),
+        transform.into(),
+        None,
+    );
 }
 
 trait PathBuilderExt {
@@ -455,4 +465,70 @@ impl PathBuilderExt for PathBuilder {
             }
         }
     }
+}
+
+#[repr(C)]
+pub struct ts_gradient_stop {
+    pos: f32,
+    color: ts_color,
+}
+
+impl Into<GradientStop> for ts_gradient_stop {
+    fn into(self) -> GradientStop {
+        GradientStop::new(self.pos, self.color.into())
+    }
+}
+
+#[derive(Clone)]
+pub struct ts_linear_gradient {
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    stops: Vec<GradientStop>,
+    transform: ts_transform,
+}
+
+impl From<ts_linear_gradient> for Shader<'static> {
+    fn from(value: ts_linear_gradient) -> Self {
+        LinearGradient::new(
+            Point::from_xy(value.x0, value.y0),
+            Point::from_xy(value.x1, value.y1),
+            value.stops,
+            SpreadMode::Pad,
+            value.transform.into(),
+        )
+        .unwrap()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_linear_gradient_create(
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    transform: ts_transform,
+) -> *mut ts_linear_gradient {
+    Box::into_raw(Box::new(ts_linear_gradient {
+        x0,
+        y0,
+        x1,
+        y1,
+        stops: vec![],
+        transform,
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_linear_gradient_push_stop(
+    g: *mut ts_linear_gradient,
+    stop: ts_gradient_stop,
+) {
+    (*g).stops.push(stop.into())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_linear_gradient_destroy(gradient: *mut ts_linear_gradient) {
+    let _ = Box::from_raw(gradient);
 }
