@@ -162,6 +162,7 @@ impl From<ts_fill_rule> for FillRule {
 
 pub struct ts_pixmap(tiny_skia::Pixmap);
 
+
 #[repr(C)]
 pub struct ts_rect {
     pub x0: f32,
@@ -312,6 +313,12 @@ pub unsafe extern "C" fn ts_path_destroy(b: *mut ts_path) {
 
 #[no_mangle]
 pub unsafe extern "C" fn ts_pixmap_create(width: u32, height: u32) -> *mut ts_pixmap {
+    let pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
+    Box::into_raw(Box::new(ts_pixmap(pixmap)))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_from(width: u32, height: u32) -> *mut ts_pixmap {
     let pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
     Box::into_raw(Box::new(ts_pixmap(pixmap)))
 }
