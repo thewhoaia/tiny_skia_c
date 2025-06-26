@@ -318,12 +318,6 @@ pub unsafe extern "C" fn ts_pixmap_create(width: u32, height: u32) -> *mut ts_pi
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ts_pixmap_from(width: u32, height: u32) -> *mut ts_pixmap {
-    let pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
-    Box::into_raw(Box::new(ts_pixmap(pixmap)))
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn ts_pixmap_destroy(pixmap: *mut ts_pixmap) {
     let _ = Box::from_raw(pixmap);
 }
@@ -372,8 +366,6 @@ pub unsafe extern "C" fn ts_data(pixmap: *const ts_pixmap) -> *mut ts_argb {
     let mut buffer = Vec::with_capacity((*pixmap).0.data().len());
 
     for pixel in (*pixmap).0.pixels() {
-        // let pixel = pixel.demultiply();
-        // buffer.push(data[3]);
         buffer.extend_from_slice(&[pixel.blue(), pixel.green(), pixel.red(), pixel.alpha()]);
     }
 
