@@ -2,7 +2,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use std::ffi::{c_char, CStr};
-use tiny_skia::{BlendMode, Color, FillRule, GradientStop, LinearGradient, Paint, Path, PathBuilder, Point, RadialGradient, Rect, Shader, SpreadMode, Stroke, Transform};
+use tiny_skia::{BlendMode, Color, FillRule, FilterQuality, GradientStop, LinearGradient, Paint, Path, PathBuilder, Pattern, Pixmap, Point, RadialGradient, Rect, Shader, SpreadMode, Stroke, Transform};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -416,7 +416,8 @@ pub unsafe extern "C" fn ts_pixmap_stroke_path(
 pub enum ts_paint {
     Color(ts_color),
     LinearGradient(*mut ts_linear_gradient),
-    RadialGradient(*mut ts_radial_gradient)
+    RadialGradient(*mut ts_radial_gradient),
+    Pattern(*mut ts_pattern)
 }
 
 unsafe fn convert_paint(paint: ts_paint, blend_mode: ts_blend_mode) -> Paint<'static> {
@@ -441,6 +442,20 @@ unsafe fn convert_paint(paint: ts_paint, blend_mode: ts_blend_mode) -> Paint<'st
             Paint {
                 blend_mode: blend_mode.into(),
                 shader: (*r).clone().into(),
+                ..Default::default()
+            }
+        }
+        ts_paint::Pattern(p) => {
+            let pattern = Pattern::new(
+                (*(*p).pixmap_ptr).0.as_ref(),
+                (*p).spread_mode,
+                (*p).quality,
+                (*p).opacity,
+                (*p).transform.into(),
+            );
+            Paint {
+                blend_mode: blend_mode.into(),
+                shader: pattern,
                 ..Default::default()
             }
         }
@@ -587,6 +602,14 @@ impl From<ts_radial_gradient> for Shader<'static> {
     }
 }
 
+pub struct ts_pattern {
+    pixmap_ptr: *const ts_pixmap,
+    spread_mode: SpreadMode,
+    quality: FilterQuality,
+    opacity: f32,
+    transform: ts_transform,
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn ts_linear_gradient_create(
     x0: f32,
@@ -655,6 +678,42 @@ pub unsafe extern "C" fn ts_paint_destroy(paint: ts_paint) {
         ts_paint::RadialGradient(r) => {
             let _ = Box::from_raw(r);
         }
+        ts_paint::Pattern(p) => {
+            let _ = Box::from_raw(p);
+        }
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pattern_create(
+    pixmap: *const ts_pixmap,
+    spread_mode: ts_spread_mode,
+    quality: ts_filter_quality,
+    opacity: f32,
+    transform: ts_transform,
+) -> *mut ts_pattern {
+    Box::into_raw(Box::new(ts_pattern {
+        pixmap_ptr: pixmap,
+        spread_mode: spread_mode.into(),
+        quality: quality.into(),
+        opacity,
+        transform,
+    }))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ts_pixmap_from_data(
+    data: *const u8,
+    width: u32,
+    height: u32,
+) -> *mut ts_pixmap {
+    let size = (width * height * 4) as usize;
+    let data_slice = std::slice::from_raw_parts(data, size);
+    
+    if let Some(pixmap) = Pixmap::from_vec(data_slice.to_vec(), tiny_skia::IntSize::from_wh(width, height).unwrap()) {
+        Box::into_raw(Box::new(ts_pixmap(pixmap)))
+    } else {
+        std::ptr::null_mut()
     }
 }
 
@@ -672,6 +731,24 @@ impl From<ts_spread_mode> for SpreadMode {
             ts_spread_mode::Repeat => SpreadMode::Repeat,
             ts_spread_mode::Pad => SpreadMode::Pad,
             ts_spread_mode::Reflect => SpreadMode::Reflect
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub enum ts_filter_quality {
+    Nearest,
+    Bilinear,
+    Bicubic,
+}
+
+impl From<ts_filter_quality> for FilterQuality {
+    fn from(value: ts_filter_quality) -> Self {
+        match value {
+            ts_filter_quality::Nearest => FilterQuality::Nearest,
+            ts_filter_quality::Bilinear => FilterQuality::Bilinear,
+            ts_filter_quality::Bicubic => FilterQuality::Bicubic,
         }
     }
 }
